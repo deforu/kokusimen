@@ -3,7 +3,7 @@
 しゃべるのが苦手な人の代わりに、短い発話を丁寧な返答に整えて話してくれる“魔法のマスク”プロジェクト。現在は 音声入力 → テキスト化（Whisper） → AI応答（Gemini）が動作。周辺機能は順次拡張。
 
 ### 実装機能
-- [x] Whisper + Gemini 音声アシスタント（Raspberry Pi）
+- [x] Whisper + Gemini応答テキスト
 - [ ] AI応答テキストの音声出力
 - [ ] 話者認識（できたらやる）
 - [ ] 感情分析（できたらやる）
@@ -24,8 +24,6 @@
 ```bash
 sudo apt update
 sudo apt install -y python3-venv libportaudio2 ffmpeg libopenblas-dev
-# （任意、音声応答したい場合）
-sudo apt install -y libttspico-utils alsa-utils
 ```
 
 プロジェクトセットアップ
@@ -42,16 +40,15 @@ export GEMINI_API_KEY="YOUR_API_KEY"
 使い方
 ```bash
 # 対話モード（Enterで録音開始→指定秒数で自動終了）
-python src/main.py -s 8 --model tiny --compute int8 --say
+python src/main.py -s 4 --model small --compute int8
 ```
 
 主なオプション
-- `-s/--seconds`: 1ターンの録音秒数（既定: 8）
-- `--model`: faster-whisperモデル（例: `tiny`, `base`, `small`）。まずは`tiny`推奨
+- `-s/--seconds`: 1ターンの録音秒数（既定: 4）
+- `--model`: faster-whisperモデル（例: `tiny`, `base`, `small`）。まずは`small`推奨
 - `--compute`: `int8`/`int16`/`float32` など（既定: `int8`）
 - `--lang`: 認識言語（既定: `ja`）
-- `--say`: 回答を音声合成（`pico2wave` + `aplay` がある場合）
-- `--system`: Geminiへのシステムプロンプト（既定: やさしい日本語アシスタント）
+- `--system`: Geminiへのシステムプロンプト（既定: マスク型・丁寧変換アシスタント）
 
 マイク動作確認のヒント
 - `arecord -l` でデバイス一覧
@@ -59,8 +56,8 @@ python src/main.py -s 8 --model tiny --compute int8 --say
 - 録音が失敗する場合はユーザーを `audio` グループへ: `sudo usermod -a -G audio $USER` → 再起動
 
 モデル選択の目安（Pi）
-- 速度優先: `--model tiny --compute int8`
-- 精度優先: `--model base` または `small`（遅くなる）
+- 速度優先: `--model tiny --compute int8`（制度が悪い）
+- 精度優先: `--model base` または `small`（少し遅くなる）
 
 トラブルシュート
 - `GEMINI_API_KEY` が未設定: 環境変数を設定してください
