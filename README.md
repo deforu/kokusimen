@@ -8,7 +8,7 @@ Whisper + Gemini 音声アシスタント（Raspberry Pi）
 動作要件（Raspberry Pi OS 64-bit 推奨）
 - Raspberry Pi 4/5（64-bit OS 推奨）
 - Python 3.9+（推奨: 3.11）
-- USBマイクまたはI2Sマイク、スピーカー（任意）
+- USBマイクまたはI2Sマイク、スピーカー
 - ネット接続（Gemini利用のため）
 
 システムパッケージのインストール
@@ -57,8 +57,5 @@ python src/main.py -s 8 --model tiny --compute int8 --say
 - `GEMINI_API_KEY` が未設定: 環境変数を設定してください
 - 録音でエラー: `libportaudio2` の導入、サンプリングレート（既定16kHz）を見直す
 - 応答が遅い: モデルを `tiny` に、録音秒数を短く
-
-ライセンス / 注意
-- 本サンプルは教育目的の参考実装です。Geminiの利用規約・API利用制限を遵守してください。
 
 # kokusimen
