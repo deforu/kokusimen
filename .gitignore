@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual Environment
+.venv/
+
+# Build/dist artifacts
+build/
+dist/
+*.egg-info/
+
+# IDE / Editor specific
+.idea/
+.vscode/
+*.sublime-workspace
+
+# OS specific
+.DS_Store
+Thumbs.db
+
+# Environment variables file
+.env
+
+# Logs and temporary files
+*.log
+log.txt
+text.txt
