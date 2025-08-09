@@ -1,4 +1,13 @@
-Whisper + Gemini 音声アシスタント（Raspberry Pi）
+# 黒死面
+
+しゃべるのが苦手な人の代わりに、短い発話を丁寧な返答に整えて話してくれる“魔法のマスク”プロジェクト。現在は 音声入力 → テキスト化（Whisper） → AI応答（Gemini） → 音声合成 のMVPが動作。周辺機能は順次拡張します。
+
+### 実装済み
+- [x] Whisper + Gemini 音声アシスタント（Raspberry Pi）
+- [ ] AI応答テキストの音声出力
+- [ ] 話者認識（できたらやる）
+- [ ] 感情分析（できたらやる）
+- [ ] LED制御（できたらやる）
 
 概要
 - ローカル音声認識: faster-whisper（CTranslate2, CPU/INT8）
