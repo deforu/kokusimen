@@ -2,4 +2,7 @@ faster-whisper
 google-generativeai
 sounddevice
 soundfile
+requests
+pygame
+pywin32
 
