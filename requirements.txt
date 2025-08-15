@@ -2,4 +2,6 @@ faster-whisper
 google-generativeai
 sounddevice
 soundfile
+janome
+rpi_ws281x
 

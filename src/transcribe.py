@@ -25,4 +25,3 @@ def transcribe_file(path: str, language: str = "ja") -> str:
     )
     text = "".join(seg.text for seg in segments).strip()
     return text
-
