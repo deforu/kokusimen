@@ -1,78 +1,200 @@
-# 黒死面
+# Raspberry Pi 5 Whisper音声認識システム
 
-しゃべるのが苦手な人の代わりに、短い発話を丁寧な返答に整えて話してくれる“魔法のマスク”プロジェクト。現在は 音声入力 → テキスト化（Whisper） → AI応答（Gemini）→ 感情分析 → LED表示 が動作。周辺機能は順次拡張。
+Raspberry Pi 5で動作するWhisperを使った音声認識システムです。5秒間の音声を録音して自動的に文字起こしを行います。
 
-### 実装機能
-- [x] Whisper + Gemini応答テキスト
-- [x] 応答テキストの感情分析
-- [x] 感情に応じたLEDカラーの表示
-- [ ] AI応答テキストの音声出力
-- [ ] 話者認識（できたらやる）
+## 特徴
 
-概要
-- ローカル音声認識: faster-whisper（CTranslate2, CPU/INT8）
-- 生成AI応答: Google Gemini（`google-generativeai` SDK）
-- 感情分析: Janome（形態素解析）＋簡易的な極性辞書
-- LED制御: rpi_ws281x（アドレス指定可能LEDテープ）
-- ラズパイで動作を想定。小型モデル＋INT8で軽量化。
+- **5秒間の自動録音**: ボタンを押すだけで5秒間録音し、自動的に文字起こし
+- **日本語対応**: Whisper smallモデルで日本語音声を高精度で認識
+- **リアルタイム処理**: Raspberry Pi 5の性能を活かした高速処理
+- **連続録音モード**: 連続して音声認識を実行可能
+- **音声デバイステスト**: マイクの動作確認機能付き
 
-動作要件（Raspberry Pi OS 64-bit 推奨）
-- Raspberry Pi 4/5（64-bit OS 推奨）
-- Python 3.9+（推奨: 3.11）
-- USBマイクまたはI2Sマイク、スピーカー
-- アドレス指定可能LEDテープ（WS281x系）
-- ネット接続（Gemini利用のため）
+## 必要な環境
 
-システムパッケージのインストール
+- **ハードウェア**: Raspberry Pi 5 (8GB推奨)
+- **OS**: Raspberry Pi OS (64-bit推奨)
+- **マイク**: USB接続マイクまたはPi用マイクモジュール
+- **ストレージ**: 最低8GB (Whisperモデル保存用)
+
+## セットアップ
+
+### 1. システムの準備
+
 ```bash
-sudo apt update
-sudo apt install -y python3-venv libportaudio2 ffmpeg libopenblas-dev
-# LEDテープ(rpi-ws281x)の利用に必要
-sudo apt install -y python3-dev swig
+# リポジトリをクローン
+git clone <このリポジトリのURL>
+cd kokusimen
+
+# セットアップスクリプトを実行可能にする
+chmod +x setup.sh
+
+# セットアップを実行（10-15分程度かかります）
+./setup.sh
 ```
 
-プロジェクトセットアップ
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install --upgrade pip
-pip install -r requirements.txt
+### 2. 仮想環境のアクティベート
 
-# Gemini APIキーを設定（シェルに合わせて export/set）
-export GEMINI_API_KEY="YOUR_API_KEY"
+```bash
+source whisper_env/bin/activate
 ```
 
-使い方
+### 3. 音声デバイスの確認
+
 ```bash
-# 対話モード（Enterで録音開始→指定秒数で自動終了）
-# sudoでの実行が必要（rpi_ws281xが/dev/memにアクセスするため）
-sudo python src/main.py -s 4 --model small --compute int8
+# 音声デバイステストツールを実行
+python3 audio_test.py
 ```
 
-主なオプション
-- `-s/--seconds`: 1ターンの録音秒数（既定: 4）
-- `--model`: faster-whisperモデル（例: `tiny`, `base`, `small`）。まずは`small`推奨
-- `--compute`: `int8`/`int16`/`float32` など（既定: `int8`）
-- `--lang`: 認識言語（既定: `ja`）
-- `--system`: Geminiへのシステムプロンプト（既定: マスク型・丁寧変換アシスタント）
+## 使用方法
 
-LED設定
-- `src/led.py` の冒頭にある `LED_COUNT` や `LED_PIN` などの定数を、環境に合わせて変更してください。
-- デフォルトでは、8個のLEDを `GPIO 18` で制御する設定になっています。
-- ポジティブな応答で緑、ネガティブで赤、それ以外で白に3秒間点灯します。
+### 基本的な使用方法
 
-マイク動作確認のヒント
-- `arecord -l` でデバイス一覧
-- `alsamixer` で入力レベル調整
-- 録音が失敗する場合はユーザーを `audio` グループへ: `sudo usermod -a -G audio $USER` → 再起動
+```bash
+# 仮想環境をアクティベート
+source whisper_env/bin/activate
 
-モデル選択の目安（Pi）
-- 速度優先: `--model tiny --compute int8`（制度が悪い）
-- 精度優先: `--model base` または `small`（少し遅くなる）
+# メインプログラムを実行
+python3 whisper_voice_recorder.py
+```
 
-トラブルシュート
-- `GEMINI_API_KEY` が未設定: 環境変数を設定してください
-- 録音でエラー: `libportaudio2` の導入、サンプリングレート（既定16kHz）を見直す
-- 応答が遅い: モデルを `tiny` に、録音秒数を短く
+### プログラムの機能
 
-# kokusimen
+1. **1回だけ録音・文字起こし**
+   - 5秒間録音してその場で文字起こし
+   - テスト用途に最適
+
+2. **連続録音モード**
+   - 連続して録音と文字起こしを実行
+   - Ctrl+Cで終了
+
+3. **音声デバイステスト**
+   - マイクの動作確認
+   - 音量レベルの確認
+   - デバイス一覧の表示
+
+## トラブルシューティング
+
+### 音声が認識されない場合
+
+1. **マイクの接続確認**
+   ```bash
+   # 音声デバイス一覧を確認
+   arecord -l
+   ```
+
+2. **音量レベルの確認**
+   ```bash
+   # 音声テストツールで音量確認
+   python3 audio_test.py
+   ```
+
+3. **マイクの音量調整**
+   ```bash
+   # ALSAミキサーで音量調整
+   alsamixer
+   ```
+
+### メモリ不足の場合
+
+- Raspberry Pi 5の8GBモデルを使用することを推奨
+- 他のアプリケーションを終了してメモリを確保
+
+### 処理が重い場合
+
+- Whisperモデルを"base"や"tiny"に変更
+- `whisper_voice_recorder.py`の`load_model("small")`を変更
+
+## 設定のカスタマイズ
+
+### 録音時間の変更
+
+`whisper_voice_recorder.py`の`RECORD_SECONDS`を変更:
+
+```python
+self.RECORD_SECONDS = 10  # 10秒に変更
+```
+
+### Whisperモデルの変更
+
+使用可能なモデル: `tiny`, `base`, `small`, `medium`, `large`
+
+```python
+self.model = whisper.load_model("base")  # baseモデルに変更
+```
+
+### サンプリングレートの変更
+
+```python
+self.RATE = 44100  # 44.1kHzに変更（高音質）
+```
+
+## パフォーマンス最適化
+
+### Raspberry Pi 5での推奨設定
+
+1. **GPU メモリ分割**
+   ```bash
+   sudo raspi-config
+   # Advanced Options > Memory Split > 128
+   ```
+
+2. **スワップサイズ増加**
+   ```bash
+   sudo dphys-swapfile swapoff
+   sudo nano /etc/dphys-swapfile
+   # CONF_SWAPSIZE=2048 に変更
+   sudo dphys-swapfile setup
+   sudo dphys-swapfile swapon
+   ```
+
+3. **CPUガバナーの設定**
+   ```bash
+   echo performance | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor
+   ```
+
+## 自動起動設定
+
+### systemdサービスとして登録
+
+```bash
+# サービスファイルを作成
+sudo nano /etc/systemd/system/whisper-recorder.service
+```
+
+サービスファイルの内容:
+```ini
+[Unit]
+Description=Whisper Voice Recorder
+After=network.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/kokusimen
+ExecStart=/home/pi/kokusimen/whisper_env/bin/python /home/pi/kokusimen/whisper_voice_recorder.py
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+```
+
+サービスを有効化:
+```bash
+sudo systemctl enable whisper-recorder
+sudo systemctl start whisper-recorder
+```
+
+## ライセンス
+
+このプロジェクトはMITライセンスの下で公開されています。
+
+## 貢献
+
+バグ報告や機能要望は、GitHubのIssueでお知らせください。
+
+## 参考資料
+
+- [OpenAI Whisper](https://github.com/openai/whisper)
+- [Raspberry Pi Documentation](https://www.raspberrypi.org/documentation/)
+- [PyAudio Documentation](https://people.csail.mit.edu/hubert/pyaudio/)

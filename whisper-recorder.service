@@ -1,0 +1,21 @@
+[Unit]
+Description=Whisper Voice Recorder Service
+After=network.target sound.target
+
+[Service]
+Type=simple
+User=pi
+Group=audio
+WorkingDirectory=/home/pi/kokusimen
+Environment=PATH=/home/pi/kokusimen/whisper_env/bin
+ExecStart=/home/pi/kokusimen/whisper_env/bin/python /home/pi/kokusimen/whisper_voice_recorder.py
+Restart=always
+RestartSec=10
+
+# ログ設定
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=whisper-recorder
+
+[Install]
+WantedBy=multi-user.target

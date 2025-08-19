@@ -1,0 +1,195 @@
+#!/usr/bin/env python3
+"""
+Raspberry Pi 5用Whisper音声認識システム
+5秒間録音して文字起こしを行うプログラム
+"""
+
+import pyaudio
+import wave
+import whisper
+import threading
+import time
+import os
+import tempfile
+from datetime import datetime
+
+class WhisperVoiceRecorder:
+    def __init__(self):
+        # 録音設定
+        self.FORMAT = pyaudio.paInt16
+        self.CHANNELS = 1
+        self.RATE = 16000  # Whisperに最適な16kHz
+        self.CHUNK = 1024
+        self.RECORD_SECONDS = 5
+        
+        # Whisperモデルの初期化
+        print("Whisperモデルを読み込み中...")
+        self.model = whisper.load_model("small")
+        print("Whisperモデルの読み込み完了")
+        
+        # PyAudioの初期化
+        self.audio = pyaudio.PyAudio()
+        
+        # 録音状態
+        self.is_recording = False
+        self.recording_thread = None
+        
+    def record_audio(self, filename):
+        """5秒間音声を録音する"""
+        print(f"録音開始... {self.RECORD_SECONDS}秒間録音します")
+        
+        stream = self.audio.open(
+            format=self.FORMAT,
+            channels=self.CHANNELS,
+            rate=self.RATE,
+            input=True,
+            frames_per_buffer=self.CHUNK
+        )
+        
+        frames = []
+        
+        # 録音開始時刻を表示
+        start_time = datetime.now()
+        print(f"録音開始時刻: {start_time.strftime('%H:%M:%S')}")
+        
+        # 録音中のカウントダウン表示
+        for i in range(0, int(self.RATE / self.CHUNK * self.RECORD_SECONDS)):
+            data = stream.read(self.CHUNK)
+            frames.append(data)
+            
+            # 1秒ごとにカウントダウン表示
+            elapsed = (i + 1) * self.CHUNK / self.RATE
+            if elapsed % 1.0 < 0.1:  # 約1秒ごと
+                remaining = self.RECORD_SECONDS - int(elapsed)
+                if remaining > 0:
+                    print(f"残り {remaining} 秒...")
+        
+        print("録音完了")
+        stream.stop_stream()
+        stream.close()
+        
+        # WAVファイルとして保存
+        wf = wave.open(filename, 'wb')
+        wf.setnchannels(self.CHANNELS)
+        wf.setsampwidth(self.audio.get_sample_size(self.FORMAT))
+        wf.setframerate(self.RATE)
+        wf.writeframes(b''.join(frames))
+        wf.close()
+        
+    def transcribe_audio(self, filename):
+        """音声ファイルを文字起こしする"""
+        print("文字起こし中...")
+        
+        try:
+            # Whisperで文字起こし実行
+            result = self.model.transcribe(
+                filename,
+                language="ja",  # 日本語に設定
+                fp16=False      # Raspberry Piでは16bit浮動小数点を無効化
+            )
+            
+            text = result["text"].strip()
+            
+            if text:
+                print(f"\n=== 文字起こし結果 ===")
+                print(f"テキスト: {text}")
+                print(f"時刻: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+                print("=" * 30)
+            else:
+                print("音声が検出されませんでした")
+                
+            return text
+            
+        except Exception as e:
+            print(f"文字起こしエラー: {e}")
+            return None
+        
+    def record_and_transcribe(self):
+        """録音と文字起こしを実行"""
+        # 一時ファイル作成
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_file:
+            temp_filename = temp_file.name
+        
+        try:
+            # 録音実行
+            self.record_audio(temp_filename)
+            
+            # 文字起こし実行
+            text = self.transcribe_audio(temp_filename)
+            
+            return text
+            
+        finally:
+            # 一時ファイル削除
+            if os.path.exists(temp_filename):
+                os.unlink(temp_filename)
+    
+    def start_continuous_recording(self):
+        """連続録音モードを開始"""
+        print("連続録音モードを開始します")
+        print("Ctrl+Cで終了します")
+        print("-" * 40)
+        
+        try:
+            while True:
+                self.record_and_transcribe()
+                print("\n次の録音まで2秒待機...")
+                time.sleep(2)
+                
+        except KeyboardInterrupt:
+            print("\n録音を終了します")
+        
+    def single_recording(self):
+        """1回だけ録音と文字起こしを実行"""
+        print("1回だけ録音と文字起こしを実行します")
+        print("-" * 40)
+        
+        text = self.record_and_transcribe()
+        return text
+    
+    def __del__(self):
+        """リソースのクリーンアップ"""
+        if hasattr(self, 'audio'):
+            self.audio.terminate()
+
+def main():
+    """メイン関数"""
+    print("Raspberry Pi 5 Whisper音声認識システム")
+    print("=" * 50)
+    
+    # 録音デバイスの確認
+    audio = pyaudio.PyAudio()
+    print(f"利用可能な録音デバイス数: {audio.get_device_count()}")
+    
+    # デフォルトの入力デバイス情報を表示
+    try:
+        default_input = audio.get_default_input_device_info()
+        print(f"デフォルト入力デバイス: {default_input['name']}")
+    except:
+        print("デフォルト入力デバイスが見つかりません")
+    
+    audio.terminate()
+    
+    # WhisperVoiceRecorderのインスタンス作成
+    recorder = WhisperVoiceRecorder()
+    
+    while True:
+        print("\n選択してください:")
+        print("1. 1回だけ録音・文字起こし")
+        print("2. 連続録音モード")
+        print("3. 終了")
+        
+        choice = input("選択 (1-3): ").strip()
+        
+        if choice == "1":
+            recorder.single_recording()
+        elif choice == "2":
+            recorder.start_continuous_recording()
+        elif choice == "3":
+            print("プログラムを終了します")
+            break
+        else:
+            print("無効な選択です")
+
+if __name__ == "__main__":
+    main()
