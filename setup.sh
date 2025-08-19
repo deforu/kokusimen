@@ -116,7 +116,8 @@ pip install \
     pyaudio \
     numpy \
     scipy \
-    librosa 2>&1 | tee -a "$LOGFILE"
+    librosa \
+    psutil 2>&1 | tee -a "$LOGFILE"
 
 log "Pythonライブラリインストール完了"
 
@@ -140,18 +141,39 @@ log "音声デバイス確認:"
 arecord -l 2>&1 | tee -a "$LOGFILE"
 
 # Whisperモデルの事前ダウンロード（オプション）
-echo -e "\n${YELLOW}Whisperモデルを事前ダウンロードしますか？ (推奨) [y/N]:${NC}"
-read -r response
-if [[ "$response" =~ ^([yY][eE][sS]|[yY])$ ]]; then
-    echo -e "${YELLOW}Whisperモデル(small)をダウンロード中...${NC}"
-    echo -e "${BLUE}この処理には数分かかります...${NC}"
-    
-    log "Whisperモデルダウンロード開始"
-    python3 -c "import whisper; whisper.load_model('small')" 2>&1 | tee -a "$LOGFILE"
-    log "Whisperモデルダウンロード完了"
-else
-    echo -e "${YELLOW}モデルは初回実行時にダウンロードされます。${NC}"
-fi
+echo -e "\n${YELLOW}Whisperモデルを事前ダウンロードしますか？${NC}"
+echo -e "${BLUE}推奨: Raspberry Pi 5では軽量モデルの使用を推奨します${NC}"
+echo -e "1. tiny (最軽量、約39MB)"
+echo -e "2. base (軽量、約74MB) - 推奨"
+echo -e "3. small (中程度、約244MB)"
+echo -e "4. スキップ (初回実行時にダウンロード)"
+
+read -p "選択 (1-4): " model_choice
+
+case $model_choice in
+    1)
+        echo -e "${YELLOW}Whisperモデル(tiny)をダウンロード中...${NC}"
+        log "Whisperモデル(tiny)ダウンロード開始"
+        python3 -c "import whisper; whisper.load_model('tiny')" 2>&1 | tee -a "$LOGFILE"
+        log "Whisperモデル(tiny)ダウンロード完了"
+        ;;
+    2)
+        echo -e "${YELLOW}Whisperモデル(base)をダウンロード中...${NC}"
+        log "Whisperモデル(base)ダウンロード開始"
+        python3 -c "import whisper; whisper.load_model('base')" 2>&1 | tee -a "$LOGFILE"
+        log "Whisperモデル(base)ダウンロード完了"
+        ;;
+    3)
+        echo -e "${YELLOW}Whisperモデル(small)をダウンロード中...${NC}"
+        echo -e "${RED}注意: smallモデルはメモリ使用量が大きいです${NC}"
+        log "Whisperモデル(small)ダウンロード開始"
+        python3 -c "import whisper; whisper.load_model('small')" 2>&1 | tee -a "$LOGFILE"
+        log "Whisperモデル(small)ダウンロード完了"
+        ;;
+    *)
+        echo -e "${YELLOW}モデルは初回実行時にダウンロードされます。${NC}"
+        ;;
+esac
 
 # 実行スクリプトの作成
 echo -e "\n${YELLOW}実行スクリプトを作成中...${NC}"
@@ -218,8 +240,38 @@ else
 fi
 EOF
 
-chmod +x test_audio.sh
-log "音声テストスクリプト作成完了"
+# メモリチェックスクリプトの作成
+cat > check_memory.sh << 'EOF'
+#!/bin/bash
+# メモリ監視ツール実行スクリプト
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
+
+echo "メモリ監視ツールを起動中..."
+
+# 仮想環境をアクティベート
+if [ -d "whisper_env" ]; then
+    source whisper_env/bin/activate
+    echo "仮想環境をアクティベートしました"
+else
+    echo "エラー: 仮想環境が見つかりません"
+    exit 1
+fi
+
+# メモリ監視ツールを実行
+if [ -f "src/memory_monitor.py" ]; then
+    python3 src/memory_monitor.py
+elif [ -f "memory_monitor.py" ]; then
+    python3 memory_monitor.py
+else
+    echo "エラー: memory_monitor.pyが見つかりません"
+    exit 1
+fi
+EOF
+
+chmod +x check_memory.sh
+log "メモリチェックスクリプト作成完了"
 
 # デスクトップショートカットの作成（デスクトップ環境がある場合）
 if [ -n "$DISPLAY" ] && [ -d "$HOME/Desktop" ]; then
@@ -254,13 +306,21 @@ echo ""
 echo -e "${GREEN}2. 音声テスト:${NC}"
 echo -e "   ${YELLOW}./test_audio.sh${NC}"
 echo ""
-echo -e "${GREEN}3. 手動起動:${NC}"
+echo -e "${GREEN}3. メモリ確認:${NC}"
+echo -e "   ${YELLOW}./check_memory.sh${NC}"
+echo ""
+echo -e "${GREEN}4. 手動起動:${NC}"
 echo -e "   ${YELLOW}source whisper_env/bin/activate${NC}"
 echo -e "   ${YELLOW}python3 src/whisper_voice_recorder.py${NC}"
 echo ""
+echo -e "${BLUE}Whisperモデル推奨:${NC}"
+echo -e "- ${GREEN}8GB RAM${NC}: small, base, tiny すべて使用可能"
+echo -e "- ${YELLOW}4GB RAM${NC}: base, tiny を推奨"
+echo -e "- ${RED}2GB RAM${NC}: tiny のみ推奨"
+echo ""
 echo -e "${BLUE}注意事項:${NC}"
 echo -e "- マイクが正しく接続されていることを確認してください"
-echo -e "- 初回実行時にWhisperモデルがダウンロードされる場合があります"
+echo -e "- メモリ不足でクラッシュする場合は軽量モデルを選択してください"
 echo -e "- 詳細なログは ${YELLOW}setup.log${NC} を確認してください"
 echo ""
 echo -e "${GREEN}システムを再起動することを推奨します${NC}"

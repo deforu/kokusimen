@@ -14,7 +14,7 @@ import tempfile
 from datetime import datetime
 
 class WhisperVoiceRecorder:
-    def __init__(self):
+    def __init__(self, model_size="base"):
         # 録音設定
         self.FORMAT = pyaudio.paInt16
         self.CHANNELS = 1
@@ -22,10 +22,20 @@ class WhisperVoiceRecorder:
         self.CHUNK = 1024
         self.RECORD_SECONDS = 5
         
+        # モデルサイズの設定
+        self.model_size = model_size
+        
         # Whisperモデルの初期化
-        print("Whisperモデルを読み込み中...")
-        self.model = whisper.load_model("small")
-        print("Whisperモデルの読み込み完了")
+        print(f"Whisperモデル({model_size})を読み込み中...")
+        try:
+            self.model = whisper.load_model(model_size)
+            print(f"Whisperモデル({model_size})の読み込み完了")
+        except Exception as e:
+            print(f"モデル読み込みエラー: {e}")
+            print("より軽量なtinyモデルを試します...")
+            self.model = whisper.load_model("tiny")
+            self.model_size = "tiny"
+            print("Whisperモデル(tiny)の読み込み完了")
         
         # PyAudioの初期化
         self.audio = pyaudio.PyAudio()
@@ -81,20 +91,25 @@ class WhisperVoiceRecorder:
         print("文字起こし中...")
         
         try:
-            # Whisperで文字起こし実行
+            # Whisperで文字起こし実行（メモリ使用量を削減）
             result = self.model.transcribe(
                 filename,
                 language="ja",  # 日本語に設定
-                fp16=False      # Raspberry Piでは16bit浮動小数点を無効化
+                fp16=False,     # Raspberry Piでは16bit浮動小数点を無効化
+                verbose=False,  # 詳細ログを無効化してメモリ節約
+                temperature=0,  # 温度を0に設定して一貫性を向上
+                compression_ratio_threshold=2.4,  # 圧縮比の閾値を設定
+                logprob_threshold=-1.0,  # ログ確率の閾値を設定
+                no_speech_threshold=0.6,  # 無音判定の閾値を設定
             )
             
             text = result["text"].strip()
             
             if text:
-                print(f"\n=== 文字起こし結果 ===")
+                print(f"\n=== 文字起こし結果 ({self.model_size}モデル) ===")
                 print(f"テキスト: {text}")
                 print(f"時刻: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-                print("=" * 30)
+                print("=" * 40)
             else:
                 print("音声が検出されませんでした")
                 
@@ -102,6 +117,7 @@ class WhisperVoiceRecorder:
             
         except Exception as e:
             print(f"文字起こしエラー: {e}")
+            print("メモリ不足の可能性があります。より軽量なモデルを試してください。")
             return None
         
     def record_and_transcribe(self):
@@ -157,6 +173,28 @@ def main():
     print("Raspberry Pi 5 Whisper音声認識システム")
     print("=" * 50)
     
+    # モデルサイズの選択
+    print("\nWhisperモデルサイズを選択してください:")
+    print("1. tiny (最軽量、高速、精度低)")
+    print("2. base (軽量、普通速度、精度中)")
+    print("3. small (中程度、低速、精度高)")
+    
+    while True:
+        model_choice = input("選択 (1-3、Enterでbase): ").strip()
+        if model_choice == "1":
+            model_size = "tiny"
+            break
+        elif model_choice == "2" or model_choice == "":
+            model_size = "base"
+            break
+        elif model_choice == "3":
+            model_size = "small"
+            break
+        else:
+            print("無効な選択です。1-3で選択してください。")
+    
+    print(f"\n選択されたモデル: {model_size}")
+    
     # 録音デバイスの確認
     audio = pyaudio.PyAudio()
     print(f"利用可能な録音デバイス数: {audio.get_device_count()}")
@@ -171,7 +209,7 @@ def main():
     audio.terminate()
     
     # WhisperVoiceRecorderのインスタンス作成
-    recorder = WhisperVoiceRecorder()
+    recorder = WhisperVoiceRecorder(model_size)
     
     while True:
         print("\n選択してください:")
